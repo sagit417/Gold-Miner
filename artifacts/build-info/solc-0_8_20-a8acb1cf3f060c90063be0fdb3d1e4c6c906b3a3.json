@@ -1,0 +1,42 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_20-a8acb1cf3f060c90063be0fdb3d1e4c6c906b3a3",
+  "solcVersion": "0.8.20",
+  "solcLongVersion": "0.8.20+commit.a1b79de6",
+  "compilerType": "solc",
+  "userSourceNameMap": {
+    "contracts/MiningGame.sol": "project/contracts/MiningGame.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/MiningGame.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\ncontract MiningGame {\n    struct Player {\n        uint256 personalBest;\n        uint256 totalScore;\n        uint256 lastCheckIn;\n        uint16 currentStreak;\n        uint16 bonusBombs;\n        uint16 bonusStars;\n    }\n\n    mapping(address => Player) public players;\n    \n    struct LeaderboardEntry {\n        address playerAddr;\n        uint256 totalScore;\n    }\n\n    LeaderboardEntry[10] public leaderboard;\n\n    event ScoreSubmitted(address indexed player, uint256 score, uint8 level, uint256 totalScore);\n    event CheckedIn(address indexed player, uint16 streak, uint16 bombsAwarded, uint16 starsAwarded, uint256 coinsAwarded);\n\n    function submitScore(uint256 score, uint8 level) external {\n        require(score > 0, \"Score must be greater than 0\");\n        \n        Player storage p = players[msg.sender];\n        \n        if (score > p.personalBest) {\n            p.personalBest = score;\n        }\n        \n        p.totalScore += score;\n\n        _updateLeaderboard(msg.sender, p.totalScore);\n\n        emit ScoreSubmitted(msg.sender, score, level, p.totalScore);\n    }\n\n    function dailyCheckIn() external {\n        require(canCheckIn(msg.sender), \"Check-in not available yet\");\n        \n        Player storage p = players[msg.sender];\n        \n        // Calculate streak\n        if (p.lastCheckIn == 0 || block.timestamp > p.lastCheckIn + 48 hours) {\n            // Missed a day or first time, reset streak\n            p.currentStreak = 1;\n        } else {\n            // Within 24-48 hours, increment streak\n            p.currentStreak += 1;\n        }\n        \n        p.lastCheckIn = block.timestamp;\n        \n        // Awards: +1 bomb, +1 star life, and +50 bonus coins\n        uint16 bombsAwarded = 1;\n        uint16 starsAwarded = 1;\n        uint256 coinsAwarded = 50;\n\n        // Streak bonus: every 7-day streak gives +1 extra star life\n        if (p.currentStreak % 7 == 0) {\n            starsAwarded += 1;\n        }\n\n        p.bonusBombs += bombsAwarded;\n        p.bonusStars += starsAwarded;\n        p.totalScore += coinsAwarded; // Bonus coins add to total score?\n        // Or should coins just be added to their next game? The prompt says \"adds to cumulative all-time score\"\n        // Let's add it to totalScore directly so it reflects on the leaderboard\n        \n        _updateLeaderboard(msg.sender, p.totalScore);\n\n        emit CheckedIn(msg.sender, p.currentStreak, bombsAwarded, starsAwarded, coinsAwarded);\n    }\n\n    function _updateLeaderboard(address player, uint256 newTotalScore) internal {\n        // Find if player is already on leaderboard\n        int256 playerIndex = -1;\n        for (uint256 i = 0; i < 10; i++) {\n            if (leaderboard[i].playerAddr == player) {\n                playerIndex = int256(i);\n                break;\n            }\n        }\n\n        if (playerIndex != -1) {\n            // Update existing entry\n            leaderboard[uint256(playerIndex)].totalScore = newTotalScore;\n            // Shift up if necessary\n            for (uint256 i = uint256(playerIndex); i > 0; i--) {\n                if (leaderboard[i].totalScore > leaderboard[i - 1].totalScore) {\n                    LeaderboardEntry memory temp = leaderboard[i - 1];\n                    leaderboard[i - 1] = leaderboard[i];\n                    leaderboard[i] = temp;\n                } else {\n                    break;\n                }\n            }\n        } else {\n            // Check if better than last place\n            if (newTotalScore > leaderboard[9].totalScore) {\n                leaderboard[9] = LeaderboardEntry(player, newTotalScore);\n                // Shift up\n                for (uint256 i = 9; i > 0; i--) {\n                    if (leaderboard[i].totalScore > leaderboard[i - 1].totalScore) {\n                        LeaderboardEntry memory temp = leaderboard[i - 1];\n                        leaderboard[i - 1] = leaderboard[i];\n                        leaderboard[i] = temp;\n                    } else {\n                        break;\n                    }\n                }\n            }\n        }\n    }\n\n    function getPlayer(address playerAddr) external view returns (\n        uint256 personalBest,\n        uint256 totalScore,\n        uint256 lastCheckIn,\n        uint16 currentStreak,\n        uint16 bonusBombs,\n        uint16 bonusStars\n    ) {\n        Player storage p = players[playerAddr];\n        return (\n            p.personalBest,\n            p.totalScore,\n            p.lastCheckIn,\n            p.currentStreak,\n            p.bonusBombs,\n            p.bonusStars\n        );\n    }\n\n    function getLeaderboard() external view returns (LeaderboardEntry[10] memory) {\n        return leaderboard;\n    }\n\n    function canCheckIn(address playerAddr) public view returns (bool) {\n        Player storage p = players[playerAddr];\n        if (p.lastCheckIn == 0) return true;\n        return block.timestamp >= p.lastCheckIn + 24 hours;\n    }\n    \n    function secondsUntilNextCheckIn(address playerAddr) public view returns (uint256) {\n        Player storage p = players[playerAddr];\n        if (p.lastCheckIn == 0) return 0;\n        uint256 nextTime = p.lastCheckIn + 24 hours;\n        if (block.timestamp >= nextTime) return 0;\n        return nextTime - block.timestamp;\n    }\n}\n"
+      }
+    }
+  }
+}
