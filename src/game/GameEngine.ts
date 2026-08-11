@@ -32,8 +32,7 @@ export interface GameState {
   minerPos: { x: number, y: number };
 }
 
-const MIN_ANGLE = -Math.PI / 4;   // -45 degrees
-const MAX_ANGLE = Math.PI + Math.PI / 4;    // 225 degrees (Wait, straight down is Math.PI / 2. Let's say 0 is right, Math.PI is left)
+
 // Let's use standard canvas angles: 0 is Right, PI/2 is Down, PI is Left
 // Miner is on the left wall, looking right. 
 // So hook swings from straight down (PI/2) to straight right (0) or slightly up (-PI/8).
@@ -48,7 +47,6 @@ export class GameEngine {
   public state: GameState;
   private canvasWidth: number = 0;
   private canvasHeight: number = 0;
-  private lastTime: number = 0;
   private timerInterval: any = null;
   
   public onPlaySound?: (sound: 'fire' | 'grab' | 'coin' | 'complete' | 'over' | 'bomb') => void;

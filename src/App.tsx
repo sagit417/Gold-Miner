@@ -336,7 +336,7 @@ function App() {
             
             <button className="btn-secondary" onClick={startGame}>Try Again</button>
             
-            {leaderboard && (
+            {Array.isArray(leaderboard) && (
               <div style={{ marginTop: '20px', textAlign: 'left', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '10px' }}>
                 <h3 style={{ marginBottom: '10px' }}>Top Miners</h3>
                 {(leaderboard as any[]).slice(0, 3).map((entry, i) => (
